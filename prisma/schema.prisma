@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String        @unique
+  password      String
+  bio           String?
+  profileImage  String?
+  role          Role          @default(USER)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  posts         Post[]
+  articles      Article[]
+  comments      Comment[]
+  likes         Like[]
+  articleLikes  ArticleLike[]
+  sessions      Session[]
+  
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Post {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  title         String
+  slug          String
+  content       String
+  excerpt       String?
+  published     Boolean     @default(false)
+  featuredImage String?
+  authorId      String      @db.ObjectId
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  author        User        @relation(fields: [authorId], references: [id])
+  categories    Category[]  @relation(fields: [categoryIds], references: [id])
+  categoryIds   String[]    @db.ObjectId
+  tags          Tag[]       @relation(fields: [tagIds], references: [id])
+  tagIds        String[]    @db.ObjectId
+  comments      Comment[]
+  likes         Like[]
+  views         Int         @default(0)
+  readingTime   Int?        // Estimated reading time in minutes
+  contentType   ContentType @default(STANDARD)
+
+  @@unique([slug])
+  @@map("posts")
+  @@index([authorId])
+  @@index([published])
+}
+
+model Article {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  title         String
+  slug          String
+  content       String
+  excerpt       String?
+  published     Boolean     @default(false)
+  featuredImage String?
+  authorId      String      @db.ObjectId
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  author        User        @relation(fields: [authorId], references: [id])
+  categories    Category[]  @relation(fields: [categoryIds], references: [id])
+  categoryIds   String[]    @db.ObjectId
+  tags          Tag[]       @relation(fields: [tagIds], references: [id])
+  tagIds        String[]    @db.ObjectId
+  comments      Comment[]
+  likes         ArticleLike[]
+  views         Int         @default(0)
+  readingTime   Int?        // Estimated reading time in minutes
+  
+  // Article-specific fields
+  type          ArticleType @default(STANDARD)
+  isSponsored   Boolean     @default(false)
+  isFeatured    Boolean     @default(false)
+  seoMeta       Json?       // For article-specific SEO metadata
+  references    String[]    // For citations or references
+  coverDesign   String?     // For special cover designs
+
+  @@unique([slug])
+  @@map("articles")
+  @@index([authorId])
+  @@index([published])
+  @@index([type])
+  @@index([isFeatured])
+}
+
+model Category {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String
+  description String?
+  posts       Post[]    @relation(fields: [postIds], references: [id])
+  postIds     String[]  @db.ObjectId
+  articles    Article[] @relation(fields: [articleIds], references: [id])
+  articleIds  String[]  @db.ObjectId
+  parentId    String?   @db.ObjectId
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children    Category[] @relation("CategoryHierarchy")
+
+  @@unique([name])
+  @@unique([slug])
+  @@map("categories")
+}
+
+model Tag {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String
+  posts       Post[]    @relation(fields: [postIds], references: [id])
+  postIds     String[]  @db.ObjectId
+  articles    Article[] @relation(fields: [articleIds], references: [id])
+  articleIds  String[]  @db.ObjectId
+
+  @@unique([name])
+  @@unique([slug])
+  @@map("tags")
+}
+
+model Comment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  content   String
+  postId    String?  @db.ObjectId
+  articleId String?  @db.ObjectId
+  authorId  String   @db.ObjectId
+  parentId  String?  @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  article   Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies   Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+  @@index([postId])
+  @@index([articleId])
+  @@index([authorId])
+}
+
+model Like {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  postId    String   @db.ObjectId
+  userId    String   @db.ObjectId
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("likes")
+  @@index([postId])
+  @@index([userId])
+}
+
+model ArticleLike {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  articleId String   @db.ObjectId
+  userId    String   @db.ObjectId
+  createdAt DateTime @default(now())
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, userId])
+  @@map("article_likes")
+  @@index([articleId])
+  @@index([userId])
+}
+
+model Settings {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  siteName        String
+  siteDescription String?
+  logo            String?
+  favicon         String?
+  primaryColor    String?
+  accentColor     String?
+  socialLinks     Json?     // For storing social media links
+  metaTags        Json?     // For SEO meta tags
+  analyticsId     String?
+  updatedAt       DateTime  @updatedAt
+
+  @@map("settings")
+}
+
+enum Role {
+  USER
+  AUTHOR
+  EDITOR
+  ADMIN
+}
+
+enum ContentType {
+  STANDARD
+  FEATURED
+  PINNED
+  SPONSORED
+}
+
+enum ArticleType {
+  STANDARD
+  INTERVIEW
+  TUTORIAL
+  REVIEW
+  OPINION
+  ANALYSIS
+  NEWS
+  CASE_STUDY
+  RESEARCH
+}
